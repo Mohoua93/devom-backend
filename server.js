@@ -46,10 +46,12 @@ app.post('/api/contact', async (req, res) => {
     // 2. Configuration du transporteur d'email (Nodemailer)
     // Utilise les identifiants stockés dans le fichier .env
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.office365.com', // Serveur SMTP de Microsoft
+      port: 587,
+      secure: false, // `false` pour le port 587, `true` pour le 465
       auth: {
-        user: process.env.EMAIL_USER, // Votre adresse email
-        pass: process.env.EMAIL_PASS, // Votre mot de passe d'application Gmail
+        user: process.env.EMAIL_USER, // info@devom.fr
+        pass: process.env.EMAIL_PASS, // Le mot de passe de votre boîte mail
       },
     });
 
