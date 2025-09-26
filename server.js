@@ -23,13 +23,17 @@ app.post('/api/contact', async (req, res) => {
         }
 
         const transporter = nodemailer.createTransport({
-            host: 'ssl0.ovh.net',
-            port: 465,
-            secure: true,
+            host: 'ssl0.ovh.net', // Conserver l'hôte d'OVH
+            port: 587,           // 👈 Changer le port de 465 à 587
+            secure: false,       // 👈 Changer à false pour utiliser STARTTLS
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS,
             },
+            // 👈 AJOUTER l'option TLS pour forcer le chiffrement STARTTLS
+            tls: {
+                rejectUnauthorized: false
+            }
         });
 
         const mailOptions = {
