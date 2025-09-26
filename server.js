@@ -1,66 +1,105 @@
-const express = require('express');
-const cors = require('cors');
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+// server.js
+const express = require("express");
+const cors = require("cors");
+const { Resend } = require("resend");
+require("dotenv").config();
 
 const app = express();
 
-app.use(express.json());
+// --- Middlewares
+app.use(express.json({ limit: "1mb" }));
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://devom.fr",
+      "https://www.devom.fr",
+      "https://devom-frontend.vercel.app",
+    ],
+    methods: ["POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+// Préflight (au cas où)
+app.options("/api/contact", cors());
 
-// Configuration CORS simplifiée et plus robuste
-app.use(cors({
-    origin: ['http://localhost:3000', 'https://devom.fr', 'https://www.devom.fr', 'https://devom-frontend.vercel.app'],
-    methods: ['POST'],
-    allowedHeaders: ['Content-Type'],
-}));
+// --- Resend init (API d'envoi d'emails)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-app.post('/api/contact', async (req, res) => {
-    try {
-        const { name, email, message } = req.body;
+// --- Routes
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
-        if (!name || !email || !message) {
-            return res.status(400).json({ message: 'Tous les champs sont requis.' });
-        }
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, email, message } = req.body || {};
 
-        const transporter = nodemailer.createTransport({
-            host: 'ssl0.ovh.net', // Conserver l'hôte d'OVH
-            port: 587,           // 👈 Changer le port de 465 à 587
-            secure: false,       // 👈 Changer à false pour utiliser STARTTLS
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-            // 👈 AJOUTER l'option TLS pour forcer le chiffrement STARTTLS
-            tls: {
-                rejectUnauthorized: false
-            }
-        });
-
-        const mailOptions = {
-            from: `"${name}" <${email}>`,
-            to: process.env.EMAIL_USER,
-            subject: `Nouveau message de ${name} via votre portfolio`,
-            text: `Vous avez reçu un message de :\n\nNom: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-            html: `<p>Vous avez reçu un message de :</p>
-                   <ul>
-                     <li><strong>Nom :</strong> ${name}</li>
-                     <li><strong>Email :</strong> ${email}</li>
-                   </ul>
-                   <p><strong>Message :</strong></p>
-                   <p>${message.replace(/\n/g, '<br>')}</p>`,
-        }
-
-        await transporter.sendMail(mailOptions);
-
-        res.status(200).json({ message: 'Message envoyé avec succès !' });
-
-    } catch (error) {
-        console.error('Erreur du serveur :', error);
-        res.status(500).json({ message: 'Une erreur est survenue sur le serveur.' });
+    // Validation minimale
+    if (!name || !email || !message) {
+      return res.status(400).json({ message: "Tous les champs sont requis." });
     }
+    if (String(message).length > 5000) {
+      return res.status(400).json({ message: "Message trop long." });
+    }
+
+    // (Option) petit anti-bot: refuse si lien suspect
+    const hasManyLinks = (message.match(/https?:\/\//gi) || []).length > 3;
+    if (hasManyLinks) {
+      return res.status(400).json({ message: "Message non valide." });
+    }
+
+    // Construction du contenu
+    const plain = `Vous avez reçu un message :
+Nom: ${name}
+Email: ${email}
+
+Message:
+${message}`;
+
+    const html = `
+      <p>Vous avez reçu un message :</p>
+      <ul>
+        <li><strong>Nom :</strong> ${escapeHtml(name)}</li>
+        <li><strong>Email :</strong> ${escapeHtml(email)}</li>
+      </ul>
+      <p><strong>Message :</strong></p>
+      <p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>
+    `;
+
+    // Envoi via Resend (PAS de SMTP, donc pas de timeout réseau vers un port SMTP)
+    await resend.emails.send({
+      from: process.env.FROM_EMAIL || "Devom <no-reply@devom.fr>", // idéalement un domaine vérifié sur Resend
+      to: process.env.TO_EMAIL || process.env.EMAIL_USER,          // destinataire réel (toi)
+      reply_to: email,                                             // pour répondre au visiteur
+      subject: `Nouveau message de ${name} via votre portfolio`,
+      text: plain,
+      html,
+    });
+
+    return res.status(200).json({ message: "Message envoyé avec succès !" });
+  } catch (error) {
+    // Log détaillé côté serveur
+    console.error("[CONTACT ERROR]", {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      statusCode: error?.statusCode,
+    });
+    return res.status(500).json({ message: "Une erreur est survenue sur le serveur." });
+  }
 });
 
+// --- Server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`Serveur démarré et à l'écoute sur le port ${PORT} 🚀`);
+  console.log(`Serveur démarré et à l'écoute sur le port ${PORT} 🚀`);
 });
+
+// --- Helpers
+function escapeHtml(str = "") {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
