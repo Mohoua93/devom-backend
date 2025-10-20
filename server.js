@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const { Resend } = require("resend");
@@ -12,6 +11,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
+      "http://localhost:3002", // <-- AJOUTÉ : Autorise l'exécution depuis ce port local
       "https://devom.fr",
       "https://www.devom.fr",
       "https://devom-frontend.vercel.app",
@@ -24,13 +24,25 @@ app.use(
 app.options("/api/contact", cors());
 
 // --- Resend init (API d'envoi d'emails)
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey = process.env.RESEND_API_KEY;
+
+// VÉRIFICATION AJOUTÉE : Rend l'initialisation plus robuste
+if (!resendApiKey) {
+  console.error("🚨 ERREUR: La variable RESEND_API_KEY est manquante dans .env ou dans les variables d'environnement.");
+}
+
+const resend = new Resend(resendApiKey);
 
 // --- Routes
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.post("/api/contact", async (req, res) => {
   try {
+    // Si la clé est manquante, nous retournons une erreur pour ne pas appeler Resend
+    if (!resendApiKey) {
+        return res.status(500).json({ message: "Le service d'envoi d'emails n'est pas configuré sur le serveur." });
+    }
+
     const { name, email, message } = req.body || {};
 
     // Validation minimale
