@@ -9,11 +9,11 @@ const app = express();
 // NOUVELLE CONFIGURATION : Passage au port 587 (TLS/STARTTLS)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "ssl0.ovh.net", 
-  port: process.env.SMTP_PORT || 587,             // Changement : Port 587
-  secure: false,                                  // Changement : Désactiver 'secure' pour utiliser STARTTLS
-  requireTLS: true,                               // Ajout : Oblige l'utilisation de TLS
+  port: process.env.SMTP_PORT || 465, // <-- ESSAYEZ 465
+  secure: true,                       // <-- Mettre 'secure' à true pour le port 465
+  // requireTLS: true,               // Inutile si 'secure' est true
   auth: {
-    user: process.env.EMAIL_USER,                 // Votre adresse email complète (ex: info@devom.fr)
+    user: process.env.EMAIL_USER,
     pass: process.env.MAIL_PASS,                  // Le mot de passe de l'adresse email
   },
   // Ajout d'une temporisation plus longue, au cas où le réseau serait lent
