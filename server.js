@@ -6,15 +6,22 @@ require("dotenv").config();
 const app = express();
 
 // --- Configuration du transporteur Nodemailer (Serveur SMTP)
-// Ces informations (HOST, PORT, USER, PASS) sont lues depuis le fichier .env
+// NOUVELLE CONFIGURATION : Passage au port 587 (TLS/STARTTLS)
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "ssl0.ovh.net", // L'hôte de votre serveur SMTP (OVH, Sendinblue, etc.)
-  port: process.env.SMTP_PORT || 465,             // Le port sécurisé standard (465 avec 'secure: true')
-  secure: true,                                   // Utiliser SSL/TLS
+  host: process.env.SMTP_HOST || "ssl0.ovh.net", 
+  port: process.env.SMTP_PORT || 587,             // Changement : Port 587
+  secure: false,                                  // Changement : Désactiver 'secure' pour utiliser STARTTLS
+  requireTLS: true,                               // Ajout : Oblige l'utilisation de TLS
   auth: {
     user: process.env.EMAIL_USER,                 // Votre adresse email complète (ex: info@devom.fr)
-    pass: process.env.MAIL_PASS,                  // Le mot de passe de l'adresse email (PAS le mot de passe de connexion OVH)
+    pass: process.env.MAIL_PASS,                  // Le mot de passe de l'adresse email
   },
+  // Ajout d'une temporisation plus longue, au cas où le réseau serait lent
+  // Cela peut aider à éviter le timeout immédiat.
+  // Ce paramètre n'est pas nécessaire si le timeout est dû à un blocage.
+  // timeout: 30000, 
+  // connectionTimeout: 30000,
+  // greetingTimeout: 30000,
 });
 
 // VÉRIFICATION CRUCIALE : Test de connexion au serveur SMTP
@@ -25,6 +32,8 @@ transporter.verify(function (error, success) {
     console.log("✅ Nodemailer est prêt à envoyer des emails.");
   }
 });
+// ... (le reste du code est inchangé)
+// ... (le reste du code est inchangé)
 
 // --- Middlewares CORS
 app.use(express.json({ limit: "1mb" }));
@@ -131,4 +140,5 @@ function escapeHtml(str = "") {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
 
