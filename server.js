@@ -10,8 +10,6 @@ const app = express();
 /* ================== CONFIG MAIL ================== */
 // --- Resend (API HTTP) ---
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-// From conseillé par Resend = domaine vérifié chez eux.
-// Par défaut on garde ton adresse:
 const FROM_EMAIL = (process.env.FROM_EMAIL || "").trim();
 
 // --- SMTP (pour usage local uniquement, si tu veux) ---
@@ -48,18 +46,26 @@ const allowedOrigins = [
   "https://devom-frontend.vercel.app",
 ];
 
+// Monte CORS tout en haut (avant les routes)
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // curl, healthchecks
+      // Autorise aussi les requêtes sans Origin (curl, healthchecks)
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"), false);
     },
     methods: ["GET", "POST", "OPTIONS"],
-    credentials: false,
+    credentials: false, // passe à true uniquement si tu utilises des cookies cross-site
   })
 );
-app.options("*", cors());
+
+// Express 5: plus de wildcard de route avec "*"
+// Répondre 204 à TOUTES les requêtes OPTIONS (prévol) après le CORS global
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 /* ================================================== */
 
 /* ================= MIDDLEWARES =================== */
@@ -189,7 +195,6 @@ app.post("/api/contact", async (req, res) => {
     /* 4) ENVOI — Resend si dispo, sinon SMTP (local) */
     if (RESEND_API_KEY) {
       if (!FROM_EMAIL) {
-        // Force un from si non fourni; idéalement FROM_EMAIL = domaine vérifié chez Resend
         throw new Error("FROM_EMAIL manquant pour l'envoi via Resend.");
       }
       const resend = new Resend(RESEND_API_KEY);
@@ -246,4 +251,3 @@ function escapeHtml(str = "") {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
